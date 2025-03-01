@@ -1,0 +1,25 @@
+#!/bin/bash
+
+REMOTE_HOST="remote_host_address"    # Replace with your remote server's address
+REMOTE_USER="your_username"          # Replace with your username
+FILE1="/path/to/remote/file1"         # Replace with the path to the first file
+FILE2="/path/to/remote/file2"         # Replace with the path to the second file
+
+# SSH into the remote server and compare the files
+ssh "${REMOTE_USER}@${REMOTE_HOST}" << EOF
+if [[ -f "$FILE1" && -f "$FILE2" ]]; then
+    CHECKSUM1=\$(md5sum "$FILE1" | awk '{print \$1}')
+    CHECKSUM2=\$(md5sum "$FILE2" | awk '{print \$1}')
+    
+    if [[ "\$CHECKSUM1" == "\$CHECKSUM2" ]]; then
+        echo "Files match"
+        exit 0
+    else
+        echo "Files do not match"
+        exit 1
+    fi
+else
+    echo "One or both files do not exist"
+    exit 1
+fi
+EOF
