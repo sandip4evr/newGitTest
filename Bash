@@ -1,12 +1,20 @@
 #!/bin/bash
 
+# Define the local directory to check
+LOCAL_DIR="/path/to/local/directory"
+
+# Define remote connection details and files
 REMOTE_HOST="remote_host_address"    # Replace with your remote server's address
 REMOTE_USER="your_username"          # Replace with your username
-FILE1="/path/to/remote/file1"         # Replace with the path to the first file
-FILE2="/path/to/remote/file2"         # Replace with the path to the second file
+FILE1="/path/to/remote/file1"        # Replace with the path to the first file
+FILE2="/path/to/remote/file2"        # Replace with the path to the second file
 
-# SSH into the remote server and compare the files
-ssh "${REMOTE_USER}@${REMOTE_HOST}" << EOF
+# Check if the local directory exists
+if [[ -d "$LOCAL_DIR" ]]; then
+    echo "Local directory exists: $LOCAL_DIR"
+    
+    # SSH into the remote server and compare the files
+    ssh "${REMOTE_USER}@${REMOTE_HOST}" << EOF
 if [[ -f "$FILE1" && -f "$FILE2" ]]; then
     CHECKSUM1=\$(md5sum "$FILE1" | awk '{print \$1}')
     CHECKSUM2=\$(md5sum "$FILE2" | awk '{print \$1}')
@@ -23,3 +31,7 @@ else
     exit 1
 fi
 EOF
+else
+    echo "Local directory does not exist: $LOCAL_DIR"
+    exit 1
+fi
