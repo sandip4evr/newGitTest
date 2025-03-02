@@ -35,3 +35,109 @@ else
     echo "Local directory does not exist: $LOCAL_DIR"
     exit 1
 fi
+
+
+
+
+
+
+#!/bin/bash
+
+# Variables
+AIRFLOW_HOME="/opt/airflow"
+PYTHON_BIN="/usr/bin/python3"
+VENV_DIR="$AIRFLOW_HOME/venv"
+DB_USER="airflow"
+DB_PASSWORD="airflow_pass"
+DB_HOST="your_postgres_host"
+DB_PORT="5432"
+DB_NAME="airflow"
+REDIS_HOST="your_redis_host"
+REDIS_PORT="6379"
+NODE_TYPE=$1  # Pass 'webserver', 'scheduler', or 'worker' as an argument
+PBRUN_CMD="pbrun"  # Replace with your actual pbrun command if different
+
+# Function to install dependencies
+install_dependencies() {
+    echo "Installing system dependencies..."
+    $PBRUN_CMD apt update
+    $PBRUN_CMD apt install -y python3 python3-pip virtualenv postgresql redis
+}
+
+# Function to create Airflow home directory and user
+setup_airflow_user() {
+    echo "Setting up Airflow user and directories..."
+    $PBRUN_CMD useradd -m -d $AIRFLOW_HOME -s /bin/bash airflow || true
+    $PBRUN_CMD mkdir -p $AIRFLOW_HOME
+    $PBRUN_CMD chown -R $USER:$USER $AIRFLOW_HOME
+}
+
+# Function to set up virtual environment
+setup_virtualenv() {
+    echo "Setting up virtual environment..."
+    virtualenv -p $PYTHON_BIN $VENV_DIR
+    source $VENV_DIR/bin/activate
+    pip install apache-airflow[celery,postgres,redis]
+    deactivate
+}
+
+# Function to create airflow.cfg
+create_airflow_cfg() {
+    echo "Creating airflow.cfg..."
+    cat > $AIRFLOW_HOME/airflow.cfg <<EOF
+[core]
+dags_folder = $AIRFLOW_HOME/dags
+executor = CeleryExecutor
+sql_alchemy_conn = postgresql+psycopg2://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME
+result_backend = db+postgresql://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME
+[celery]
+broker_url = redis://$REDIS_HOST:$REDIS_PORT/0
+result_backend = db+postgresql://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME
+EOF
+}
+
+# Function to create environment variables
+create_environment_vars() {
+    echo "Setting up environment variables..."
+    cat > $AIRFLOW_HOME/environment.sh <<EOF
+export AIRFLOW_HOME=$AIRFLOW_HOME
+export AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+EOF
+    chmod +x $AIRFLOW_HOME/environment.sh
+    source $AIRFLOW_HOME/environment.sh
+}
+
+# Function to start Airflow services
+start_airflow() {
+    echo "Starting Airflow $NODE_TYPE..."
+    source $VENV_DIR/bin/activate
+    case $NODE_TYPE in
+        webserver)
+            airflow webserver --port 8080
+            ;;
+        scheduler)
+            airflow scheduler
+            ;;
+        worker)
+            airflow celery worker
+            ;;
+        *)
+            echo "Invalid node type! Use 'webserver', 'scheduler', or 'worker'."
+            ;;
+    esac
+    deactivate
+}
+
+# Main script execution
+if [ -z "$NODE_TYPE" ]; then
+    echo "Usage: ./setup_airflow.sh <node_type>"
+    echo "node_type: webserver, scheduler, or worker"
+    exit 1
+fi
+
+install_dependencies
+setup_airflow_user
+setup_virtualenv
+create_airflow_cfg
+create_environment_vars
+start_airflow
